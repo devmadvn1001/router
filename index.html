@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MikroTik Control Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans min-h-screen p-4">
+
+    <!-- Header -->
+    <header class="flex justify-between items-center bg-gray-800 p-4 rounded-lg shadow-lg mb-6 border border-gray-700">
+        <h1 class="text-2xl font-bold text-blue-400">🚀 MikroTik Center</h1>
+        <button onclick="toggleSettings()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded text-sm font-semibold transition">
+            ⚙️ Cấu Hình Trạm
+        </button>
+    </header>
+
+    <!-- Khu vực Settings (Ẩn/Hiện) -->
+    <div id="settingsPanel" class="hidden bg-gray-800 p-6 rounded-lg shadow-lg mb-6 border border-gray-700">
+        <h2 class="text-lg font-bold mb-4 text-yellow-400">Thông số kết nối (Lưu Local)</h2>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <input type="text" id="mkIp" placeholder="IP MikroTik (VD: 192.168.88.1)" class="bg-gray-700 p-2 rounded border border-gray-600 focus:border-blue-500 outline-none">
+            <input type="text" id="mkUser" placeholder="Tài khoản (VD: admin)" class="bg-gray-700 p-2 rounded border border-gray-600 focus:border-blue-500 outline-none">
+            <input type="password" id="mkPass" placeholder="Mật khẩu" class="bg-gray-700 p-2 rounded border border-gray-600 focus:border-blue-500 outline-none">
+            <input type="text" id="pyPort" placeholder="Cổng Python (Mặc định: 9999)" value="9999" class="bg-gray-700 p-2 rounded border border-gray-600 focus:border-blue-500 outline-none">
+        </div>
+        <button onclick="saveSettings()" class="mt-4 bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded font-bold transition">💾 Lưu Cấu Hình</button>
+    </div>
+
+    <!-- Main Dashboard -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        
+        <!-- Cột 1: Thay Máu WireGuard -->
+        <div class="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700 md:col-span-2">
+            <h2 class="text-xl font-bold mb-4 text-green-400">🛡️ Thay Máu Hầm WireGuard</h2>
+            
+            <div class="flex gap-4 mb-4">
+                <button onclick="fetchWGList()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded font-semibold transition">🔄 Tải Danh Sách Hầm</button>
+                <select id="wgSelect" class="bg-gray-700 p-2 rounded border border-gray-600 flex-1 outline-none">
+                    <option value="">-- Chọn Hầm Để Ghi Đè --</option>
+                </select>
+            </div>
+
+            <div id="dropZone" class="border-2 border-dashed border-gray-600 rounded-lg p-10 text-center hover:border-blue-400 transition cursor-pointer bg-gray-750">
+                <p class="text-gray-400 font-semibold mb-2">Kéo thả file .conf vào đây hoặc Click để chọn file</p>
+                <input type="file" id="fileInput" class="hidden" accept=".conf">
+            </div>
+
+            <div id="previewBox" class="hidden mt-4 bg-gray-900 p-4 rounded border border-gray-700 text-sm font-mono text-gray-300">
+                <!-- Nội dung phân tích file conf sẽ hiện ở đây -->
+            </div>
+
+            <button id="btnApply" onclick="applyWGConfig()" class="hidden w-full mt-4 bg-red-600 hover:bg-red-500 text-white font-bold py-3 rounded text-lg transition shadow-[0_0_15px_rgba(220,38,38,0.5)]">
+                🔥 ỐP CẤU HÌNH NGAY
+            </button>
+        </div>
+
+        <!-- Cột 2: Script & Radar -->
+        <div class="flex flex-col gap-6">
+            
+            <!-- Bảng Công Tắc Tốc Hành -->
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700 flex-1">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-bold text-purple-400">📜 Kịch Bản (Script)</h2>
+                    <button onclick="fetchScripts()" class="text-sm bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded">🔄 Tải</button>
+                </div>
+                <div id="scriptList" class="flex flex-col gap-2 max-h-60 overflow-y-auto pr-2">
+                    <!-- Danh sách script hiện ở đây -->
+                    <p class="text-gray-500 italic text-sm">Chưa có dữ liệu, hãy tải danh sách.</p>
+                </div>
+            </div>
+
+            <!-- Radar Giám Sát -->
+            <div class="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
+                <h2 class="text-xl font-bold mb-4 text-cyan-400">📡 Radar Giám Sát</h2>
+                <div class="flex justify-between items-center mb-4 bg-gray-900 p-3 rounded">
+                    <span class="font-semibold text-gray-300">Ping VPN:</span>
+                    <span id="vpnPingDisp" class="font-mono text-green-400 font-bold">-- ms</span>
+                </div>
+                <div class="flex justify-between items-center mb-6 bg-gray-900 p-3 rounded">
+                    <span class="font-semibold text-gray-300">Ping CDN:</span>
+                    <span id="cdnPingDisp" class="font-mono text-yellow-400 font-bold">-- ms</span>
+                </div>
+                <button onclick="clearMikrotikTrash()" class="w-full bg-orange-600 hover:bg-orange-500 font-bold py-2 rounded transition">
+                    🧹 Dọn Rác IP Khẩn Cấp
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        let parsedConfig = null;
+
+        // 1. Quản lý LocalStorage
+        function toggleSettings() { document.getElementById('settingsPanel').classList.toggle('hidden'); }
+        
+        function loadSettings() {
+            document.getElementById('mkIp').value = localStorage.getItem('mkIp') || '';
+            document.getElementById('mkUser').value = localStorage.getItem('mkUser') || '';
+            document.getElementById('mkPass').value = localStorage.getItem('mkPass') || '';
+            document.getElementById('pyPort').value = localStorage.getItem('pyPort') || '9999';
+        }
+
+        function saveSettings() {
+            localStorage.setItem('mkIp', document.getElementById('mkIp').value);
+            localStorage.setItem('mkUser', document.getElementById('mkUser').value);
+            localStorage.setItem('mkPass', document.getElementById('mkPass').value);
+            localStorage.setItem('pyPort', document.getElementById('pyPort').value);
+            Swal.fire({icon: 'success', title: 'Đã lưu tàng hình!', background: '#1f2937', color: '#fff', timer: 1500, showConfirmButton: false});
+            toggleSettings();
+        }
+
+        function getBaseUrl() {
+            return `http://127.0.0.1:${localStorage.getItem('pyPort') || '9999'}`;
+        }
+
+        function getMkAuth() {
+            return {
+                ip: localStorage.getItem('mkIp'),
+                user: localStorage.getItem('mkUser'),
+                pass: localStorage.getItem('mkPass')
+            };
+        }
+
+        // 2. Xử lý File Kéo Thả (WireGuard)
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-blue-500'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-blue-500'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-blue-500');
+            if(e.dataTransfer.files.length) processFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => { if(e.target.files.length) processFile(e.target.files[0]); });
+
+        function processFile(file) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                parsedConfig = {
+                    privateKey: (text.match(/PrivateKey\s*=\s*(.+)/) || [])[1],
+                    address: (text.match(/Address\s*=\s*([^,]+)/) || [])[1],
+                    publicKey: (text.match(/PublicKey\s*=\s*(.+)/) || [])[1],
+                    endpoint: (text.match(/Endpoint\s*=\s*([^:]+:\d+)/) || [])[1],
+                    presharedKey: (text.match(/PresharedKey\s*=\s*(.+)/) || [])[1]
+                };
+
+                if(!parsedConfig.privateKey || !parsedConfig.endpoint) {
+                    Swal.fire('Lỗi', 'File không đúng chuẩn WireGuard!', 'error');
+                    return;
+                }
+
+                document.getElementById('previewBox').classList.remove('hidden');
+                document.getElementById('previewBox').innerHTML = `
+                    <span class="text-blue-400">Endpoint:</span> ${parsedConfig.endpoint}<br>
+                    <span class="text-green-400">IP Nội bộ:</span> ${parsedConfig.address}<br>
+                    <span class="text-yellow-400">Trạng thái:</span> File chuẩn, sẵn sàng ốp!
+                `;
+                document.getElementById('btnApply').classList.remove('hidden');
+            };
+            reader.readAsText(file);
+        }
+
+        // 3. Giao tiếp API với Python Trạm
+        async function fetchWGList() {
+            try {
+                const res = await fetch(`${getBaseUrl()}/api/mk_read`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({auth: getMkAuth(), cmd: '/interface/wireguard/print'})
+                });
+                const data = await res.json();
+                const sel = document.getElementById('wgSelect');
+                sel.innerHTML = '<option value="">-- Chọn Hầm Để Ghi Đè --</option>';
+                data.forEach(wg => {
+                    sel.innerHTML += `<option value="${wg.name}">${wg.name} ${wg.comment ? `(${wg.comment})` : ''}</option>`;
+                });
+                Swal.fire({toast: true, position: 'top-end', icon: 'success', title: 'Đã tải danh sách WG', showConfirmButton: false, timer: 2000});
+            } catch(e) { Swal.fire('Lỗi', 'Không kết nối được Python ở cổng ' + localStorage.getItem('pyPort'), 'error'); }
+        }
+
+        async function applyWGConfig() {
+            const targetWg = document.getElementById('wgSelect').value;
+            if(!targetWg) return Swal.fire('Cảnh báo', 'Vui lòng chọn hầm muốn ghi đè!', 'warning');
+            
+            // Xử lý tách Endpoint Host và Port
+            const epParts = parsedConfig.endpoint.split(':');
+            
+            try {
+                Swal.fire({title: 'Đang ốp cấu hình...', allowOutsideClick: false, didOpen: () => Swal.showLoading()});
+                await fetch(`${getBaseUrl()}/api/mk_apply_wg`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        auth: getMkAuth(),
+                        target: targetWg,
+                        config: {
+                            privateKey: parsedConfig.privateKey.trim(),
+                            address: parsedConfig.address.trim(),
+                            publicKey: parsedConfig.publicKey.trim(),
+                            presharedKey: parsedConfig.presharedKey ? parsedConfig.presharedKey.trim() : "",
+                            endpointAddress: epParts[0],
+                            endpointPort: epParts[1] || "443"
+                        }
+                    })
+                });
+                Swal.fire('Thành Công!', `Đã đè cấu hình mới vào ${targetWg}`, 'success');
+            } catch(e) { Swal.fire('Lỗi', 'Ghi đè thất bại', 'error'); }
+        }
+
+        async function fetchScripts() {
+            try {
+                const res = await fetch(`${getBaseUrl()}/api/mk_read`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({auth: getMkAuth(), cmd: '/system/script/print'})
+                });
+                const data = await res.json();
+                const list = document.getElementById('scriptList');
+                list.innerHTML = '';
+                data.forEach(sc => {
+                    list.innerHTML += `
+                        <div class="flex justify-between items-center bg-gray-700 p-2 rounded">
+                            <span class="font-semibold">${sc.name}</span>
+                            <button onclick="runScript('${sc.name}')" class="bg-purple-600 hover:bg-purple-500 px-3 py-1 rounded text-sm font-bold shadow">▶ RUN</button>
+                        </div>`;
+                });
+            } catch(e) {}
+        }
+
+        async function runScript(name) {
+            try {
+                await fetch(`${getBaseUrl()}/api/mk_run_script`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({auth: getMkAuth(), script_name: name})
+                });
+                Swal.fire({toast: true, position: 'top-end', icon: 'success', title: `Đã kích hoạt ${name}`, showConfirmButton: false, timer: 2000});
+            } catch(e) {}
+        }
+
+        async function clearMikrotikTrash() {
+            try {
+                await fetch(`${getBaseUrl()}/api/mk_run_script`, {
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({auth: getMkAuth(), script_name: 'Radar-ESP32'}) // Thay đổi tùy script dọn rác của bác
+                });
+                Swal.fire('Hoàn tất', 'Đã ra lệnh dọn rác!', 'success');
+            } catch(e) {}
+        }
+
+        // Radar tự động ping 3 giây 1 lần
+        setInterval(async () => {
+            try {
+                const resVpn = await fetch(`${getBaseUrl()}/vpn_ping`);
+                document.getElementById('vpnPingDisp').innerText = (await resVpn.text()) + ' ms';
+                const resCdn = await fetch(`${getBaseUrl()}/cdn_ping`);
+                document.getElementById('cdnPingDisp').innerText = (await resCdn.text()) + ' ms';
+            } catch(e) {}
+        }, 3000);
+
+        // Khởi động
+        window.onload = loadSettings;
+    </script>
+</body>
+</html>
